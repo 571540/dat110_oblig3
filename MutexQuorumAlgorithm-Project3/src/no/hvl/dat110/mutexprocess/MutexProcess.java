@@ -3,6 +3,7 @@ package no.hvl.dat110.mutexprocess;
 import java.io.File;
 import java.io.IOException;
 import java.rmi.AccessException;
+import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.ArrayList;
@@ -94,9 +95,10 @@ public class MutexProcess extends UnicastRemoteObject implements ProcessInterfac
 		WANTS_TO_ENTER_CS = true;
 		
 		// multicast read request to start the voting to N/2 + 1 replicas (majority) - optimal. You could as well send to all the replicas that have the file
+		boolean resultat;
+		resultat = multicastMessage(message, N -1);
 		
-		
-		return false;		// change to the election result
+		return resultat;		// change to the election result
 	}
 	
 	public boolean requestReadOperation(Message message) throws RemoteException {
@@ -108,9 +110,10 @@ public class MutexProcess extends UnicastRemoteObject implements ProcessInterfac
 		WANTS_TO_ENTER_CS = true;
 		
 		// multicast read request to start the voting to N/2 + 1 replicas (majority) - optimal. You could as well send to all the replicas that have the file
+		boolean resultat;
+		resultat = multicastMessage(message, N-1);
 		
-		
-		return false;  // change to the election result
+		return resultat;  // change to the election result
 	}
 	
 	// multicast message to N/2 + 1 processes (random processes)
@@ -118,17 +121,28 @@ public class MutexProcess extends UnicastRemoteObject implements ProcessInterfac
 		
 		replicas.remove(this.procStubname);			// remove this process from the list
 		
-		 
+		 Collections.shuffle(replicas);
 		// randomize - shuffle list each time - to get random processes each time
 		
 		// multicast message to N/2 + 1 processes (random processes) - block until feedback is received
+		 for(int i=0; i<n; i++) {
+			 String temp = replicas.get(i);
+			 try {
+				Message returned = Util.registryHandle(temp).onMessageReceived(message);
+				// do something with the acknowledgement you received from the voters - Idea: use the queueACK to collect GRANT/DENY messages and make sure queueACK is synchronized!!!
+				queueACK.add(returned);
+			} catch (NotBoundException e) {
+				e.printStackTrace();
+			}
+		 }
 		
-		// do something with the acknowledgement you received from the voters - Idea: use the queueACK to collect GRANT/DENY messages and make sure queueACK is synchronized!!!
+		
 		
 		// compute election result - Idea call majorityAcknowledged()
+		 boolean resultat = majorityAcknowledged();
 		
 		
-		return false;  // change to the election result			
+		return resultat;  // change to the election result			
 
 	}
 	
