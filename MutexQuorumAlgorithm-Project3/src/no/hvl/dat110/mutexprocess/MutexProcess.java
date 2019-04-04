@@ -136,23 +136,53 @@ public class MutexProcess extends UnicastRemoteObject implements ProcessInterfac
 	public Message onMessageReceived(Message message) throws RemoteException {
 		
 		// increment the local clock
-
+		incrementclock();
+		
 		// Hint: for all 3 cases, use Message to send GRANT or DENY. e.g. message.setAcknowledgement(true) = GRANT
 		
 		/**
 		 *  case 1: Receiver is not accessing shared resource and does not want to: GRANT, acquirelock and reply
 		 */
 		
+		if(!CS_BUSY && !WANTS_TO_ENTER_CS) {
+			Message m = new Message();
+			m.setProcessStubName(this.procStubname);
+			m.setClock(this.counter);
+			m.setAcknowledged(true);
+			acquireLock();
+			return m;
+		}
 		
 		/**
 		 *  case 2: Receiver already has access to the resource: DENY and reply
 		 */
 		
+		if(CS_BUSY) {
+			Message m = new Message();
+			m.setProcessStubName(this.procStubname);
+			m.setClock(this.counter);
+			m.setAcknowledged(true);
+			return m;
+		}
 		
 		/**
 		 *  case 3: Receiver wants to access resource but is yet to (compare own multicast message to received message
 		 *  the message with lower timestamp wins) - GRANT if received is lower, acquirelock and reply
 		 */		
+		
+		if(WANTS_TO_ENTER_CS) {
+			Message m = new Message();
+			m.setProcessStubName(this.procStubname);
+			m.setClock(this.counter);
+			if(m.getClock() < message.getClock()) {
+				m.setAcknowledged(false);
+				return m;
+			}else {
+				m.setAcknowledged(true);
+				acquireLock();
+				return m;
+			}
+		}
 		
 		
 		return null;
@@ -164,10 +194,14 @@ public class MutexProcess extends UnicastRemoteObject implements ProcessInterfac
 		// check if it is the majority or not
 		// return the decision (true or false)
 
-				
-				
-				
-		return false;			// change this to the result of the vote
+		int yes = 0;
+		for(Message m : queueACK) {
+			if(m.isAcknowledged()) {
+				yes++;
+			}
+		}
+		// change this to the result of the vote			
+		return quorum <= yes;	
 	}
 
 		
@@ -175,8 +209,10 @@ public class MutexProcess extends UnicastRemoteObject implements ProcessInterfac
 	public void onReceivedVotersDecision(Message message) throws RemoteException {
 		
 		// release CS lock if voter initiator says he was denied access bcos he lacks majority votes
-		
 		// otherwise lock is kept
+		if(!message.isAcknowledged()) {
+			releaseLocks();
+		}
 
 	}
 
