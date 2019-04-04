@@ -233,7 +233,14 @@ public class MutexProcess extends UnicastRemoteObject implements ProcessInterfac
 	@Override
 	public void onReceivedUpdateOperation(Message message) throws RemoteException {
 		
-		// check the operation type: we expect a WRITE operation to do this. 
+		// check the operation type: we expect a WRITE operation to do this.
+		if(message.getOptype() == OperationType.WRITE) {
+			Operations op = new Operations(this, message);
+			op.performOperation();
+			releaseLocks();
+		}else if(message.getOptype() == OperationType.WRITE) {
+			releaseLocks();
+		}
 		// perform operation by using the Operations class 
 		// Release locks after this operation
 		
