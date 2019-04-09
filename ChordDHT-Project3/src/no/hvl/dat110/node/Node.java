@@ -1,13 +1,5 @@
 package no.hvl.dat110.node;
 
-
-
-/**
- * project/exercise/demo purpose in dat110
- * @author tdoy
- *
- */
-
 import java.io.File;
 import java.io.IOException;
 import java.math.BigInteger;
@@ -30,58 +22,54 @@ import no.hvl.dat110.util.Hash;
 import no.hvl.dat110.util.Util;
 
 public class Node extends UnicastRemoteObject implements ChordNodeInterface {
-	
-	/**
-	 * 
-	 */
+
 	private static final long serialVersionUID = 1L;
-	private BigInteger nodeID;		// BigInteger value of hash of IP address of the Node
-	private String nodeIP;			// IP address of node 
+	private BigInteger nodeID;
+	private String nodeIP;
 	private ChordNodeInterface successor;
 	private ChordNodeInterface predecessor;
 	private List<ChordNodeInterface> fingerTable;
 	private Set<BigInteger> fileKey;
 	private Map<BigInteger, Message> filesMetadata;
-	
-	// variables for mutex and quorum-based protocols
-	private List<Message> queue;							// queue for this process
-	private List<Message> queueACK; 						// queue for acknowledged messages
+
+	private List<Message> queue;
+	private List<Message> queueACK;
 	private Set<Message> activenodesforfile;
 
-	private int counter;									// Lamport local clock
-	private boolean CS_BUSY = false;						// indicate to be in critical section (accessing a shared resource) 
-	private boolean WANTS_TO_ENTER_CS = false;				// indicate to want to enter CS
+	private int counter;
+	private boolean CS_BUSY = false;
+	private boolean WANTS_TO_ENTER_CS = false;
 	private int quorum;
-	
+
 	public Node(String nodename) throws RemoteException, UnknownHostException {
 		super();
 
 		fingerTable = new ArrayList<ChordNodeInterface>();
 		fileKey = new HashSet<BigInteger>();
-		// setNodeIP(InetAddress.getLocalHost().getHostAddress());	// use the IP address of the host
-		setNodeIP(nodename);										// use a different name as "IP" for single machine simulation
-		BigInteger hashvalue = Hash.hashOf(getNodeIP());			// use the SHA-1  from Hash class
+	
+		setNodeIP(nodename);
+		BigInteger hashvalue = Hash.hashOf(getNodeIP());
 		setNodeID(hashvalue);
-		
+
 		setSuccessor(null);
 		setPredecessor(null);
 
 		filesMetadata = new HashMap<BigInteger, Message>();
-		
+
 		counter = 0;
-		queue = new ArrayList<Message>();	
+		queue = new ArrayList<Message>();
 		queueACK = new ArrayList<Message>();
-		queueACK = Collections.synchronizedList(queueACK);			// make sure to sybchronize list
+		queueACK = Collections.synchronizedList(queueACK);
 	}
-	
+
 	public BigInteger getNodeID() {
 		return nodeID;
 	}
-	
+
 	public void setNodeID(BigInteger nodeID) {
 		this.nodeID = nodeID;
 	}
-	
+
 	public String getNodeIP() {
 		return nodeIP;
 	}
@@ -93,30 +81,31 @@ public class Node extends UnicastRemoteObject implements ChordNodeInterface {
 	public ChordNodeInterface getSuccessor() {
 		return successor;
 	}
-	
+
 	public void setSuccessor(ChordNodeInterface successor) {
 		this.successor = successor;
 	}
-	
+
 	public ChordNodeInterface getPredecessor() {
 		return predecessor;
 	}
+
 	public void setPredecessor(ChordNodeInterface predecessor) {
 		this.predecessor = predecessor;
 	}
-	
+
 	public List<ChordNodeInterface> getFingerTable() {
 		return fingerTable;
 	}
-	
+
 	public void addToFingerTable(ChordNodeInterface finger) {
 		this.fingerTable.add(finger);
 	}
-	
+
 	public void removeFromFingerTable(ChordNodeInterface finger) {
 		this.fingerTable.remove(finger);
 	}
-	
+
 	public void setFingerTable(List<ChordNodeInterface> fingerTable) {
 		this.fingerTable = fingerTable;
 	}
@@ -124,350 +113,294 @@ public class Node extends UnicastRemoteObject implements ChordNodeInterface {
 	public Set<BigInteger> getFileKey() {
 		return fileKey;
 	}
-	
+
 	public void addToFileKey(BigInteger fileKey) {
 		this.fileKey.add(fileKey);
 	}
-	
+
 	public void removeFromFileKey(BigInteger fileKey) {
 		this.fileKey.remove(fileKey);
 	}
 
 	@Override
 	public ChordNodeInterface findSuccessor(BigInteger keyid) throws RemoteException {
-		
-		// ask this node to find the successor of id
-		ChordNodeInterface succ = this.getSuccessor();			// last known successor of this node
-			
-		ChordNodeInterface succstub = Util.registryHandle(succ); 	// issue a remote call and see if this node is still active
-			
-		if(succstub != null) {
-			
-			//System.out.println("Successor for Node: successor("+this.getNodeIP()+") = "+succstub.getNodeIP());
-			
+
+		ChordNodeInterface succ = this.getSuccessor();
+
+		ChordNodeInterface succstub = Util.registryHandle(succ); 
+
+		if (succstub != null) {
 			BigInteger succID = succstub.getNodeID();
 			BigInteger nodeID = this.getNodeID();
 
-			// check that keyid is a member of the set {nodeid+1,...,succID}
 			Boolean cond = Util.computeLogic(keyid, nodeID.add(new BigInteger("1")), succID);
-	
-			if(cond) {
+
+			if (cond) {
 				return succstub;
 			} else {
-				// search the local finger table of this node for the highest predecessor of id
 				ChordNodeInterface highest_pred = findHighestPredecessor(keyid);
-				return highest_pred.findSuccessor(keyid);							// a remote call
+				return highest_pred.findSuccessor(keyid);
 			}
 		}
-				
-		return null;	
+
+		return null;
 	}
-	
+
 	private ChordNodeInterface findHighestPredecessor(BigInteger ID) throws RemoteException {
-		
+
 		BigInteger nodeID = getNodeID();
-		List<ChordNodeInterface> fingers = getFingerTable();			
-		
+		List<ChordNodeInterface> fingers = getFingerTable();
+
 		int size = fingers.size() - 1;
-		//System.out.println("FingerTable size: "+fingers.size());
-		for(int i=0; i<fingers.size()-1; i++) {
-			int m = size-i;
+		// System.out.println("FingerTable size: "+fingers.size());
+		for (int i = 0; i < fingers.size() - 1; i++) {
+			int m = size - i;
 			ChordNodeInterface ftsucc = fingers.get(m);
 			try {
 				BigInteger ftsuccID = ftsucc.getNodeID();
-				
+
 				Registry registry = Util.locateRegistry(ftsucc.getNodeIP());
-				
-				if(registry == null)
+
+				if (registry == null)
 					return this;
 
 				ChordNodeInterface ftsuccnode = (ChordNodeInterface) registry.lookup(ftsuccID.toString());
 
-				// check that ftsuccID is a member of the set {nodeID+1,...,ID-1}
-				boolean cond = Util.computeLogic(ftsuccID, nodeID.add(new BigInteger("1")), ID.subtract(new BigInteger("1")));
-				if(cond) {
+				boolean cond = Util.computeLogic(ftsuccID, nodeID.add(new BigInteger("1")),
+						ID.subtract(new BigInteger("1")));
+				if (cond) {
 					return ftsuccnode;
 				}
 			} catch (Exception e) {
-				//e.printStackTrace();
-			}			
+				// e.printStackTrace();
+			}
 		}
-		
-		return (ChordNodeInterface) this;			
+
+		return (ChordNodeInterface) this;
 	}
-	
+
 	@Override
 	public void notifySuccessor(ChordNodeInterface pred_new) throws RemoteException {
-		
+
 		ChordNodeInterface pred_old = this.getPredecessor();
-		
-		if(pred_old == null) {
-			this.setPredecessor(pred_new);		// accept the new predecessor
+
+		if (pred_old == null) {
+			this.setPredecessor(pred_new);
 			return;
 		}
-		
+
 		BigInteger succID = this.getNodeID();
 		BigInteger pred_oldID = pred_old.getNodeID();
 		BigInteger pred_newID = pred_new.getNodeID();
-		
-		// check that ftsuccID is a member of the set {nodeID+1,...,ID-1}
-		boolean cond = Util.computeLogic(pred_newID, pred_oldID.add(new BigInteger("1")), succID.add(new BigInteger("1")));
-		if(cond) {		
-			this.setPredecessor(pred_new);		// accept the new predecessor
-		}		
-		
+
+		boolean cond = Util.computeLogic(pred_newID, pred_oldID.add(new BigInteger("1")),
+				succID.add(new BigInteger("1")));
+		if (cond) {
+			this.setPredecessor(pred_new);
+		}
+
 	}
-	
+
 	@Override
 	public void createFileInNodeLocalDirectory(String initialcontent, BigInteger destID) throws RemoteException {
 		String path = new File(".").getAbsolutePath().replace(".", "");
-		//System.out.println(path);
+		// System.out.println(path);
 		String destpath = path + "/" + this.getNodeIP() + "/" + destID;
-		
+
 		File file = new File(destpath);
-		
+
 		try {
-			if(!file.exists())					// if replica already exist don't destroy it
+			if (!file.exists())
 				file.createNewFile();
 		} catch (IOException e) {
-			//e.printStackTrace();
+			// e.printStackTrace();
 		}
-		
-		// write initial content in the file - i.e. the local node's info
+
 		Util.writetofile(initialcontent, file);
-		
-		// wrap the file details and node details in a message (metadata of file)	
+
 		buildMessage(destID, destpath);
 	}
-	
+
 	public Map<BigInteger, Message> getFilesMetadata() throws RemoteException {
 		return filesMetadata;
 	}
 
 	private void buildMessage(BigInteger destID, String destpath) throws RemoteException {
-		
+
 		Message m = new Message();
 		m.setNodeID(getNodeID());
 		m.setNodeIP(getNodeIP());
 		m.setFilename(destID);
-		m.setFilepath(destpath);									// absolute path to the resource (file)
-		m.setVersion(0); 											// This is a new replica (version=0) to be managed by this node
-		filesMetadata.put(destID, m);								// save the replica and its metadata
+		m.setFilepath(destpath);
+		m.setVersion(0);
+		filesMetadata.put(destID, m);
 	}
-		
-	/*
-	 *  Section: Mutual exclusion and quorum-based protocol implementation
-	 * 
-	 */
-	
+
 	@Override
 	public void incrementclock() throws RemoteException {
 		counter++;
 	}
-	
+
 	@Override
 	public void acquireLock() throws RemoteException {
-		incrementclock();
 		CS_BUSY = true;
+		incrementclock();
 	}
-	
+
 	@Override
 	public void releaseLocks() throws RemoteException {
 		CS_BUSY = false;
 		WANTS_TO_ENTER_CS = false;
 	}
-	
+
 	@Override
 	public boolean requestWriteOperation(Message message) throws RemoteException {
-		
-		incrementclock();								// increment clock 
-		message.setClock(counter); // set the timestamp of message
+		incrementclock();
 		message.setOptype(OperationType.WRITE);
+		message.setClock(counter);
 
-		// wants to access resource - multicast clock + message to other processes
 		WANTS_TO_ENTER_CS = true;
-		boolean resultat = multicastMessage(message); // request for write permission from N/2 + 1 replicas
-															// (majority)
-		return resultat;
+		boolean resultat = multicastMessage(message);
 
+		return resultat;
 	}
 
 	@Override
 	public boolean requestReadOperation(Message message) throws RemoteException {
-
-		incrementclock(); // increment clock
-		message.setClock(counter); // set the timestamp of message
+		incrementclock();
 		message.setOptype(OperationType.READ);
+		message.setClock(counter);
 
-		// wants to access resource - multicast clock + message to other processes
 		WANTS_TO_ENTER_CS = true;
-		boolean resultat = multicastMessage(message); // request for read permission from N/2 + 1 replicas					// (majority)
+		boolean resultat = multicastMessage(message);
 
 		return resultat;
 	}
 
-	// multicast message to N/2 + 1 processes (random processes)
-		private boolean multicastMessage(Message message) throws AccessException, RemoteException{
-			List<Message> liste = new ArrayList<>(activenodesforfile);
-			liste.remove(message);	
-			Collections.shuffle(liste);
+	private boolean multicastMessage(Message message) throws AccessException, RemoteException {
+		List<Message> list = new ArrayList<>(activenodesforfile);
+		list.remove(message);
+		Collections.shuffle(list);
 
-			for(Message m : liste){
-				nodeIP = m.getNodeIP();
-				String nodeID = m.getNodeID().toString();
-				try {
-					Registry reg = Util.locateRegistry(nodeIP);
-					ChordNodeInterface cni = (ChordNodeInterface) reg.lookup(nodeID);
-					Message msg = cni.onMessageReceived(message);
-					queueACK.add(msg);
-				}catch(Exception e){
-					System.out.println("Multicast Message failed");
-					e.printStackTrace();
-				}
+		for (Message msg : list) {
+			String nodeID = msg.getNodeID().toString();
+			nodeIP = msg.getNodeIP();
+			try {
+				Registry reg = Util.locateRegistry(nodeIP);
+				ChordNodeInterface cni = (ChordNodeInterface) reg.lookup(nodeID);
+				Message m = cni.onMessageReceived(message);
+				queueACK.add(m);
+			} catch (Exception e) {
+				System.out.println("Multicast message failed");
+				e.printStackTrace();
 			}
-			
-			// multicast message to N/2 + 1 processes (random processes) - block until feedback is received
-			
-			// do something with the acknowledgement you received from the voters - Idea: use the queueACK to collect GRANT/DENY messages and make sure queueACK is synchronized!!!
-			boolean electionResult = majorityAcknowledged();
-			// compute election result - Idea call majorityAcknowledged()
-			
-			
-			return electionResult;  // change to the election result
 		}
-		
-		@Override
-		public Message onMessageReceived(Message message) throws RemoteException {
-			// increment the local clock
-			incrementclock();
 
-			// Hint: for all 3 cases, use Message to send GRANT or DENY. e.g. message.setAcknowledgement(true) = GRANT
-			
-			/**
-			 *  case 1: Receiver is not accessing shared resource and does not want to: GRANT, acquirelock and reply
-			 */
-			if(!CS_BUSY && !WANTS_TO_ENTER_CS){
-				Message m = new Message();
+		boolean resultat = majorityAcknowledged();
+
+		return resultat;
+	}
+
+	@Override
+	public Message onMessageReceived(Message message) throws RemoteException {
+
+		incrementclock();
+
+		if (CS_BUSY) {
+			Message m = new Message();
+			m.setClock(this.counter);
+			m.setNodeIP(nodeIP);
+			m.setNodeID(nodeID);
+			m.setAcknowledged(false);
+			return m;
+		}
+
+		if (WANTS_TO_ENTER_CS) {
+			Message m = new Message();
+			m.setClock(this.counter);
+			m.setNodeIP(nodeIP);
+			m.setNodeID(nodeID);
+			if (m.getClock() < message.getClock()) {
+				m.setAcknowledged(false);
+				return m;
+			} else {
 				m.setAcknowledged(true);
-				m.setClock(this.counter);
-				m.setNodeIP(nodeIP);
-				m.setNodeID(nodeID);
 				acquireLock();
 				return m;
 			}
-			
-			/**
-			 *  case 2: Receiver already has access to the resource: DENY and reply
-			 */
-			
-			if(CS_BUSY){
-				Message m = new Message();
-				m.setAcknowledged(false);
-				m.setClock(this.counter);
-				m.setNodeIP(nodeIP);
-				m.setNodeID(nodeID);
-				return m;
-			}
-			/**
-			 *  case 3: Receiver wants to access resource but is yet to (compare own multicast message to received message
-			 *  the message with lower timestamp wins) - GRANT if received is lower, acquirelock and reply
-			 */		
-			if(WANTS_TO_ENTER_CS){
-				Message m = new Message();
-				m.setNodeIP(nodeIP);
-				m.setNodeID(nodeID);
-				m.setClock(this.counter);
-				if(m.getClock() < message.getClock()){
-					m.setAcknowledged(false);
-					return m;
-				}else{
-					m.setAcknowledged(true);
-					acquireLock();
-					return m;
-				}
-			}
-			return null;
 		}
 		
-		@Override
-		public boolean majorityAcknowledged() throws RemoteException {
-				// count the number of yes (i.e. where message.isAcknowledged = true)
-				// check if it is the majority or not
-				// return the decision (true or false)
-
-			int yes = 0;
-			quorum = (this.activenodesforfile.size()/2) + 1;
-			for(Message m : queueACK) {
-				if (m.isAcknowledged()){
-					yes++;
-				}
-			}
-			return quorum <= yes;
-		}
-
-		@Override
-		public void setActiveNodesForFile(Set<Message> messages) throws RemoteException {
-			
-			activenodesforfile = messages;
-			
-		}
-
-		@Override
-		public void onReceivedVotersDecision(Message message) throws RemoteException {
-			// release CS lock if voter initiator says he was denied access bcos he lacks majority votes
-			// otherwise lock is kept
-			if(!message.isAcknowledged()){
-				releaseLocks();
-			}
-
-		}
-
-		@Override
-		public void onReceivedUpdateOperation(Message message) throws RemoteException {
-			// check the operation type: we expect a WRITE operation to do this. 
-			// perform operation by using the Operations class 
-			// Release locks after this operation
-			if(message.getOptype() == OperationType.WRITE){
-				Operations operasjon = new Operations(this, message, activenodesforfile);
-				operasjon.performOperation();
-				releaseLocks();
-			} else if (message.getOptype() == OperationType.READ){
-				releaseLocks();
-			}
-			
+		if (!CS_BUSY && !WANTS_TO_ENTER_CS) {
+			Message m = new Message();
+			m.setClock(this.counter);
+			m.setNodeIP(nodeIP);
+			m.setNodeID(nodeID);
+			m.setAcknowledged(true);
+			acquireLock();
+			return m;
 		}
 		
-		@Override
-		public void multicastUpdateOrReadReleaseLockOperation(Message message) throws RemoteException {
-		
-			// check the operation type:
-			// if this is a write operation, multicast the update to the rest of the replicas (voters)
-			// otherwise if this is a READ operation multicast releaselocks to the replicas (voters)
+		return null;
+	}
+
+	@Override
+	public boolean majorityAcknowledged() throws RemoteException {
+		int yes = 0;
+		quorum = (this.activenodesforfile.size() / 2) + 1;
+		for (Message msg : queueACK) {
+			if (msg.isAcknowledged()) {
+				yes++;
+			}
+		}
+		return quorum <= yes;
+	}
+
+	@Override
+	public void setActiveNodesForFile(Set<Message> messages) throws RemoteException {
+		activenodesforfile = messages;
+	}
+
+	@Override
+	public void onReceivedVotersDecision(Message message) throws RemoteException {
+		if (!message.isAcknowledged()) {
+			releaseLocks();
+		}
+	}
+
+	@Override
+	public void onReceivedUpdateOperation(Message message) throws RemoteException {
+		if (message.getOptype() == OperationType.WRITE) {
 			Operations op = new Operations(this, message, activenodesforfile);
-			if(message.getOptype() == OperationType.WRITE) {
-				op.multicastOperationToReplicas(message);
-			}else{
-				op.multicastReadReleaseLocks();
-			}
-
-		}	
-		
-		@Override
-		public void multicastVotersDecision(Message message) throws RemoteException {
-			// multicast voters decision to the rest of the replicas (i.e activenodesforfile)
-
-			for(Message m : activenodesforfile){
-				nodeIP = m.getNodeIP();
-				String nodeID = m.getNodeID().toString();
-				try {
-					Registry reg = Util.locateRegistry(nodeIP);
-					ChordNodeInterface cni = (ChordNodeInterface) reg.lookup(nodeID);
-					cni.onReceivedVotersDecision(message);
-				}catch(Exception e){
-					System.out.println("MulticastVoters message failed");
-					e.printStackTrace();
-				}
-			}
-
+			op.performOperation();
+			releaseLocks();
+		} else if (message.getOptype() == OperationType.READ) {
+			releaseLocks();
 		}
+	}
+
+	@Override
+	public void multicastUpdateOrReadReleaseLockOperation(Message message) throws RemoteException {
+		Operations op = new Operations(this, message, activenodesforfile);
+		if (message.getOptype() == OperationType.WRITE) {
+			op.multicastOperationToReplicas(message);
+		} else {
+			op.multicastReadReleaseLocks();
+		}
+	}
+
+	@Override
+	public void multicastVotersDecision(Message message) throws RemoteException {
+		for (Message msg : activenodesforfile) {
+			String nodeID = msg.getNodeID().toString();
+			nodeIP = msg.getNodeIP();
+			try {
+				Registry reg = Util.locateRegistry(nodeIP);
+				ChordNodeInterface cni = (ChordNodeInterface) reg.lookup(nodeID);
+				cni.onReceivedVotersDecision(message);
+			} catch (Exception e) {
+				System.out.println("MulticastVoters message failed");
+				e.printStackTrace();
+			}
+		}
+	}
 }

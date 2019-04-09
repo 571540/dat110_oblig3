@@ -84,9 +84,9 @@ public class MutexProcess extends UnicastRemoteObject implements ProcessInterfac
 
 	public boolean requestWriteOperation(Message message) throws RemoteException {
 		incrementclock();
+		message.setOptype(OperationType.WRITE);
 		message.setClock(counter);
 		message.setProcessID(processId);
-		message.setOptype(OperationType.WRITE);
 
 		WANTS_TO_ENTER_CS = true;
 
@@ -98,9 +98,9 @@ public class MutexProcess extends UnicastRemoteObject implements ProcessInterfac
 
 	public boolean requestReadOperation(Message message) throws RemoteException {
 		incrementclock();
+		message.setOptype(OperationType.READ);
 		message.setClock(counter);
 		message.setProcessID(processId);
-		message.setOptype(OperationType.READ);
 
 		WANTS_TO_ENTER_CS = true;
 
@@ -121,7 +121,7 @@ public class MutexProcess extends UnicastRemoteObject implements ProcessInterfac
 				Message m = Util.registryHandle(temp).onMessageReceived(message);
 				queueACK.add(m);
 			} catch (NotBoundException e) {
-				System.out.println("multicast message failed");
+				System.out.println("multicast MESSAGE failed");
 				e.printStackTrace();
 			}
 		}
@@ -173,8 +173,8 @@ public class MutexProcess extends UnicastRemoteObject implements ProcessInterfac
 
 	public boolean majorityAcknowledged() throws RemoteException {
 		int yes = 0;
-		for (Message m : queueACK) {
-			if (m.isAcknowledged()) {
+		for (Message msg : queueACK) {
+			if (msg.isAcknowledged()) {
 				yes++;
 			}
 		}
@@ -230,7 +230,7 @@ public class MutexProcess extends UnicastRemoteObject implements ProcessInterfac
 				try {
 					Util.registryHandle(replica).onReceivedVotersDecision(message);
 				} catch (Exception e) {
-					System.out.println("multicast voters failed");
+					System.out.println("multicast VOTERS DECISION failed");
 				}
 			}
 		}
