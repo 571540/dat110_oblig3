@@ -55,6 +55,7 @@ public class NodeClientWriter extends Thread {
 		String activeNode = StaticTracker.ACTIVENODES[0];
 
 		BigInteger IP = Hash.hashOf(activeNode);
+		
 
 		try {
 			ChordNodeInterface node = (ChordNodeInterface) Util.locateRegistry(activeNode).lookup(IP.toString());

@@ -17,7 +17,7 @@ import no.hvl.dat110.mutexprocess.OperationType;
 import no.hvl.dat110.mutexprocess.Operations;
 import no.hvl.dat110.mutexprocess.ProcessContainer;
 
-
+@SuppressWarnings("Duplicates")
 class TestConcurrentReadWriteConsistencyPass {
 	
 

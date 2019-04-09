@@ -83,6 +83,7 @@ public class MutexProcess extends UnicastRemoteObject implements ProcessInterfac
 	public void releaseLocks() throws RemoteException {
 		CS_BUSY = false;
 		WANTS_TO_ENTER_CS = false;
+		incrementclock();
 		// release your lock variables and logical clock update
 	}
 
@@ -131,12 +132,13 @@ public class MutexProcess extends UnicastRemoteObject implements ProcessInterfac
 		for (int i = 0; i < n; i++) {
 			String temp = replicas.get(i);
 			try {
-				Message returned = Util.registryHandle(temp).onMessageReceived(message);
+				Message m = Util.registryHandle(temp).onMessageReceived(message);
 				// do something with the acknowledgement you received from the voters - Idea:
 				// use the queueACK to collect GRANT/DENY messages and make sure queueACK is
 				// synchronized!!!
-				queueACK.add(returned);
+				queueACK.add(m);
 			} catch (NotBoundException e) {
+				System.out.println("multicast message failed");
 				e.printStackTrace();
 			}
 		}
@@ -178,7 +180,7 @@ public class MutexProcess extends UnicastRemoteObject implements ProcessInterfac
 			Message m = new Message();
 			m.setProcessStubName(this.procStubname);
 			m.setClock(this.counter);
-			m.setAcknowledged(true);
+			m.setAcknowledged(false);
 			return m;
 		}
 
@@ -261,7 +263,7 @@ public class MutexProcess extends UnicastRemoteObject implements ProcessInterfac
 		if (message.getOptype() == OperationType.WRITE) {
 			for (String replica : replicas) {
 				try {
-					Util.registryHandle(replica).multicastUpdateOrReadReleaseLockOperation(message);
+					Util.registryHandle(replica).onReceivedUpdateOperation(message);
 				} catch (Exception e) {
 					System.out.println("multicast WRITE failed");
 				}
@@ -269,7 +271,7 @@ public class MutexProcess extends UnicastRemoteObject implements ProcessInterfac
 		} else if (message.getOptype() == OperationType.READ) {
 			for (String replica : replicas) {
 				try {
-					Util.registryHandle(replica).multicastUpdateOrReadReleaseLockOperation(message);
+					Util.registryHandle(replica).onReceivedUpdateOperation(message);
 				} catch (Exception e) {
 					System.out.println("multicast READ failed");
 				}
@@ -287,7 +289,7 @@ public class MutexProcess extends UnicastRemoteObject implements ProcessInterfac
 				try {
 					Util.registryHandle(replica).onReceivedVotersDecision(message);
 				} catch (Exception e) {
-					System.out.println("multicastVoters WRITE failed");
+					System.out.println("multicast voters failed");
 				}
 			}
 		}
