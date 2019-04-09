@@ -1,5 +1,7 @@
 package no.hvl.dat110.node.client.test;
 
+import java.math.BigInteger;
+
 /**
  * exercise/demo purpose in dat110
  * @author tdoy
@@ -47,6 +49,19 @@ public class NodeClientReader extends Thread {
 		// do: FileManager fm = new FileManager(ChordNodeInterface, StaticTracker.N);
 		
 		// do: boolean succeed = fm.requestToReadFileFromAnyActiveNode(filename);
+		
+		String activeNode = StaticTracker.ACTIVENODES[0];
+		BigInteger ID = Hash.hashOf(activeNode);
+		
+		try {
+			ChordNodeInterface CNIN = (ChordNodeInterface) Util.locateRegistry(activeNode).lookup(ID.toString());
+			FileManager fm = new FileManager(CNIN, StaticTracker.N);
+			succeed = fm.requestToReadFileFromAnyActiveNode(filename);
+		}catch(RemoteException e) {
+			succeed = false;
+		}catch(NotBoundException e) {
+			succeed = false;
+		}
 	
 	}
 	
