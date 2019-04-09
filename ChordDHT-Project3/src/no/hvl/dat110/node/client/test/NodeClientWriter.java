@@ -37,28 +37,10 @@ public class NodeClientWriter extends Thread {
 	
 	private void sendRequest() {
 		
-		// Lookup(key) - Use this class as a client that is requesting for a new file and needs the identifier and IP of the node where the file is located
-		// assume you have a list of nodes in the tracker class and select one randomly. We can use the Tracker class for this purpose
-		
-		// connect to an active chord node - can use the process defined in StaticTracker 
-		
-		// Compute the hash of the node's IP address
-
-		// use the hash to retrieve the ChordNodeInterface remote object from the
-		// registry
-
-		// do: FileManager fm = new FileManager(ChordNodeInterface, StaticTracker.N);
-
-		// do: boolean succeed = fm.requestWriteToFileFromAnyActiveNode(filename,
-		// content);
-
-		String activeNode = StaticTracker.ACTIVENODES[0];
-
-		BigInteger IP = Hash.hashOf(activeNode);
-		
-
+		String aktivnode = StaticTracker.ACTIVENODES[0];
+		BigInteger IP = Hash.hashOf(aktivnode);
 		try {
-			ChordNodeInterface node = (ChordNodeInterface) Util.locateRegistry(activeNode).lookup(IP.toString());
+			ChordNodeInterface node = (ChordNodeInterface) Util.locateRegistry(aktivnode).lookup(IP.toString());
 			FileManager fm = new FileManager(node, StaticTracker.N);
 			succeed = fm.requestWriteToFileFromAnyActiveNode(filename, content);
 		} catch (RemoteException e) {
@@ -66,9 +48,7 @@ public class NodeClientWriter extends Thread {
 		} catch (NotBoundException e) {
 			succeed = false;
 		}
-
 	}
-
 	public boolean isSucceed() {
 		return succeed;
 	}

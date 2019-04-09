@@ -308,11 +308,11 @@ public class Node extends UnicastRemoteObject implements ChordNodeInterface {
 
 	// multicast message to N/2 + 1 processes (random processes)
 		private boolean multicastMessage(Message message) throws AccessException, RemoteException{
-			List<Message> list = new ArrayList<>(activenodesforfile);
-			list.remove(message);	
-			Collections.shuffle(list);
+			List<Message> liste = new ArrayList<>(activenodesforfile);
+			liste.remove(message);	
+			Collections.shuffle(liste);
 
-			for(Message m : list){
+			for(Message m : liste){
 				nodeIP = m.getNodeIP();
 				String nodeID = m.getNodeID().toString();
 				try {
