@@ -307,37 +307,25 @@ public class Node extends UnicastRemoteObject implements ChordNodeInterface {
 		incrementclock();
 
 		if (CS_BUSY) {
-			Message m = new Message();
-			m.setClock(this.counter);
-			m.setNodeIP(nodeIP);
-			m.setNodeID(nodeID);
-			m.setAcknowledged(false);
-			return m;
+			message.setAcknowledged(false);
+			return message;
 		}
 
 		if (WANTS_TO_ENTER_CS) {
-			Message m = new Message();
-			m.setClock(this.counter);
-			m.setNodeIP(nodeIP);
-			m.setNodeID(nodeID);
-			if (m.getClock() < message.getClock()) {
-				m.setAcknowledged(false);
-				return m;
+			if (this.counter < message.getClock()) {
+				message.setAcknowledged(false);
+				return message;
 			} else {
-				m.setAcknowledged(true);
+				message.setAcknowledged(true);
 				acquireLock();
-				return m;
+				return message;
 			}
 		}
 		
 		if (!CS_BUSY && !WANTS_TO_ENTER_CS) {
-			Message m = new Message();
-			m.setClock(this.counter);
-			m.setNodeIP(nodeIP);
-			m.setNodeID(nodeID);
-			m.setAcknowledged(true);
+			message.setAcknowledged(true);
 			acquireLock();
-			return m;
+			return message;
 		}
 		
 		return null;

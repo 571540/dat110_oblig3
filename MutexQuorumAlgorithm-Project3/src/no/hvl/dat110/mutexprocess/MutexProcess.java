@@ -138,34 +138,25 @@ public class MutexProcess extends UnicastRemoteObject implements ProcessInterfac
 		incrementclock();
 
 		if (CS_BUSY) {
-			Message m = new Message();
-			m.setProcessStubName(this.procStubname);
-			m.setClock(this.counter);
-			m.setAcknowledged(false);
-			return m;
+			message.setAcknowledged(false);
+			return message;
 		}
 
 		if (WANTS_TO_ENTER_CS) {
-			Message m = new Message();
-			m.setProcessStubName(this.procStubname);
-			m.setClock(this.counter);
-			if (m.getClock() < message.getClock()) {
-				m.setAcknowledged(false);
-				return m;
+			if (this.counter < message.getClock()) {
+				message.setAcknowledged(false);
+				return message;
 			} else {
-				m.setAcknowledged(true);
+				message.setAcknowledged(true);
 				acquireLock();
-				return m;
+				return message;
 			}
 		}
 		
 		if (!CS_BUSY && !WANTS_TO_ENTER_CS) {
-			Message m = new Message();
-			m.setProcessStubName(this.procStubname);
-			m.setClock(this.counter);
-			m.setAcknowledged(true);
+			message.setAcknowledged(true);
 			acquireLock();
-			return m;
+			return message;
 		}
 		
 		return null;
@@ -201,25 +192,12 @@ public class MutexProcess extends UnicastRemoteObject implements ProcessInterfac
 
 	@Override
 	public void multicastUpdateOrReadReleaseLockOperation(Message message) throws RemoteException {
-		replicas.remove(this.procStubname);
+		Operations op = new Operations(this, message);
 		if (message.getOptype() == OperationType.WRITE) {
-			for (String replica : replicas) {
-				try {
-					Util.registryHandle(replica).onReceivedUpdateOperation(message);
-				} catch (Exception e) {
-					System.out.println("multicast WRITE failed");
-				}
-			}
-		} else if (message.getOptype() == OperationType.READ) {
-			for (String replica : replicas) {
-				try {
-					Util.registryHandle(replica).onReceivedUpdateOperation(message);
-				} catch (Exception e) {
-					System.out.println("multicast READ failed");
-				}
-			}
+			op.multicastOperationToReplicas(message);
+		} else {
+			op.multicastReadReleaseLocks();
 		}
-
 	}
 
 	@Override
